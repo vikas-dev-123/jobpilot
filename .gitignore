@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Environment secrets — NEVER commit
+backend/.env
+
+# Storage uploads
+backend/storage/*
+!backend/storage/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db

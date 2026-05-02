@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JobPilot AI</title>
+  <link rel="stylesheet" href="sidebar.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="logo">⚡ JobPilot AI</div>
+      <button id="btn-close" title="Close sidebar">✕</button>
+    </header>
+
+    <div id="loading-state" class="state-panel">
+      <div class="spinner"></div>
+      <p>Analyzing job...</p>
+    </div>
+
+    <div id="match-state" class="state-panel hidden">
+      <div class="score-ring">
+        <span id="score-value">—</span>
+        <small>Match</small>
+      </div>
+
+      <div class="skills-section">
+        <h4>✅ Matched Skills</h4>
+        <div id="matched-skills" class="tag-list"></div>
+      </div>
+
+      <div class="skills-section">
+        <h4>⚠️ Missing Skills</h4>
+        <div id="missing-skills" class="tag-list"></div>
+      </div>
+
+      <div class="actions">
+        <button id="btn-coverletter" class="btn btn-primary">📝 Generate Cover Letter</button>
+        <button id="btn-email" class="btn btn-secondary">📧 Recruiter Email</button>
+      </div>
+    </div>
+
+    <div id="output-state" class="state-panel hidden">
+      <div class="output-header">
+        <button id="btn-back" class="btn-link">← Back</button>
+        <h4 id="output-title">Cover Letter</h4>
+      </div>
+      <textarea id="output-text" readonly></textarea>
+      <button id="btn-copy" class="btn btn-primary">📋 Copy to Clipboard</button>
+    </div>
+
+    <div id="error-state" class="state-panel hidden">
+      <p id="error-message" class="error-text"></p>
+      <button id="btn-retry" class="btn btn-secondary">Retry</button>
+    </div>
+  </div>
+
+  <script src="sidebar.js"></script>
+</body>
+</html>

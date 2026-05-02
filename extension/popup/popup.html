@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>JobPilot AI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 380px;
+      max-height: 560px;
+      overflow-y: auto;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+    }
+    h2 { font-size: 18px; color: #38bdf8; margin-bottom: 4px; }
+    p.subtitle { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+
+    .upload-area {
+      border: 2px dashed #334155;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      margin-bottom: 16px;
+    }
+    .upload-area:hover { border-color: #38bdf8; }
+    .upload-area p { font-size: 13px; color: #94a3b8; margin-top: 8px; }
+    #file-input { display: none; }
+
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #0284c7;
+      color: white;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #status {
+      margin-top: 14px;
+      font-size: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      display: none;
+    }
+    .status-success { background: #064e3b; color: #6ee7b7; display: block !important; }
+    .status-error { background: #450a0a; color: #fca5a5; display: block !important; }
+    .status-loading { background: #1e293b; color: #94a3b8; display: block !important; }
+
+    .resume-loaded {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    .resume-loaded strong { color: #38bdf8; display: block; margin-bottom: 6px; font-size: 13px; }
+    .skill-count { color: #94a3b8; margin-bottom: 10px; display: block; }
+
+    .detail-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #334155;
+    }
+    .detail-section h3 {
+      font-size: 11px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 8px;
+    }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+    .tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #0f172a;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+    }
+    .exp-list, .edu-list {
+      margin: 0;
+      padding-left: 18px;
+      color: #cbd5e1;
+      font-size: 11px;
+      line-height: 1.45;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .exp-list li, .edu-list li { margin-bottom: 6px; }
+
+    .discover {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    .discover h3 {
+      font-size: 12px;
+      color: #38bdf8;
+      margin-bottom: 8px;
+    }
+    .discover .hint {
+      font-size: 10px;
+      color: #64748b;
+      line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .query-pill {
+      font-size: 10px;
+      color: #94a3b8;
+      background: #0f172a;
+      padding: 6px 8px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      word-break: break-word;
+    }
+    .link-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      background: #0f172a;
+      color: #7dd3fc;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .link-btn:hover { border-color: #38bdf8; background: #172554; }
+    .discover-muted { color: #64748b; font-size: 11px; padding: 8px 0; }
+  </style>
+</head>
+<body>
+  <h2>⚡ JobPilot AI</h2>
+  <p class="subtitle">Your AI-powered job assistant</p>
+
+  <div id="discover-panel"></div>
+
+  <div class="upload-area" id="upload-area">
+    <div>📄</div>
+    <p>Click to upload your resume (PDF)</p>
+    <input type="file" id="file-input" accept=".pdf" />
+  </div>
+
+  <button class="btn" id="btn-upload" disabled>Upload Resume</button>
+  <div id="resume-status"></div>
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
