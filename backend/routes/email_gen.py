@@ -2,8 +2,14 @@ import json
 
 from fastapi import APIRouter, HTTPException
 
-from backend.models.schemas import APIResponse, EmailRequest
+from backend.models.schemas import APIResponse, EmailRequest, EmailSendRequest
 from backend.services.llm import chat_completion
+from backend.services.smtp_send import (
+    check_send_rate_limit,
+    record_send,
+    send_plain_email,
+    smtp_configured,
+)
 
 router = APIRouter(prefix="/email", tags=["Email Generator"])
 
@@ -52,4 +58,57 @@ Rules:
         success=True,
         message="Email draft generated. Review before sending.",
         data={"subject": parsed["subject"], "body": parsed["body"]},
+    )
+
+
+@router.get("/smtp-status", response_model=APIResponse)
+async def email_smtp_status():
+    return APIResponse(
+        success=True,
+        message="SMTP enabled" if smtp_configured() else "SMTP not configured",
+        data={"smtp_enabled": smtp_configured()},
+    )
+
+
+@router.post("/send", response_model=APIResponse)
+async def send_recruiter_email(req: EmailSendRequest):
+    """
+    Sends email via SMTP when SMTP_ENABLED=true. You must supply a real recipient.
+    Does not discover addresses — add recruiter email yourself (LinkedIn limits scraping).
+    """
+    if not smtp_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="SMTP disabled. Set SMTP_ENABLED=true and SMTP_* in backend/.env",
+        )
+    to_addr = (req.to or "").strip()
+    if not to_addr or "@" not in to_addr:
+        raise HTTPException(status_code=400, detail="Valid 'to' email required.")
+
+    try:
+        check_send_rate_limit()
+        send_plain_email(to_addr=to_addr, subject=req.subject.strip(), body=req.body)
+        record_send()
+    except ValueError as e:
+        raise HTTPException(status_code=429, detail=str(e)) from e
+    except OSError as e:
+        raise HTTPException(status_code=502, detail=f"SMTP error: {e!s}") from e
+
+    if req.queue_item_id:
+        try:
+            from backend.routes.apply_queue import mark_item_emailed
+
+            mark_item_emailed(
+                req.queue_item_id,
+                to_addr=to_addr,
+                subject=req.subject.strip(),
+                body=req.body,
+            )
+        except Exception:
+            pass
+
+    return APIResponse(
+        success=True,
+        message="Email sent (check inbox/Sent folder).",
+        data={"to": to_addr},
     )

@@ -15,6 +15,7 @@ class JobData(BaseModel):
     description: str = ""  # Some layouts load slowly; title+company still used for match
     url: Optional[str] = None
     source: Optional[str] = None  # "linkedin" | "naukri"
+    recruiter_email: Optional[str] = None  # if found in JD / mailto: on page
 
 
 class MatchResult(BaseModel):
@@ -50,3 +51,12 @@ class APIResponse(BaseModel):
     success: bool
     message: str
     data: Optional[dict] = None
+
+
+class EmailSendRequest(BaseModel):
+    """Send a plain-text email via configured SMTP (optional feature)."""
+
+    to: str
+    subject: str
+    body: str
+    queue_item_id: Optional[str] = None

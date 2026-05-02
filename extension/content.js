@@ -109,6 +109,78 @@
     return null;
   }
 
+  /** Emails visible in JD text or mailto: links (many LinkedIn jobs have none). */
+  const EMAIL_RX =
+    /\b[a-zA-Z0-9](?:[a-zA-Z0-9._%+-]*[a-zA-Z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}\b/g;
+
+  function decodeMailto(href) {
+    if (!href || typeof href !== "string") return "";
+    try {
+      return decodeURIComponent(href.replace(/^mailto:/i, "").split("?")[0].trim());
+    } catch {
+      return href.replace(/^mailto:/i, "").split("?")[0].trim();
+    }
+  }
+
+  function isJunkEmail(e) {
+    const x = String(e || "").toLowerCase().trim();
+    if (!x.includes("@")) return true;
+    const parts = x.split("@");
+    if (parts.length !== 2) return true;
+    const local = parts[0];
+    const domain = parts[1];
+    if (!local || !domain) return true;
+    if (
+      /noreply|no-reply|do-not-reply|donotreply|mailer-daemon|newsletter|notification|digest|promo|marketing|privacy|legal|bounce|dmarc/.test(
+        local
+      )
+    )
+      return true;
+    if (domain === "linkedin.com" || domain.endsWith(".linkedin.com")) return true;
+    if (domain === "facebookmail.com" || domain.endsWith(".fb.com")) return true;
+    if (/^example\.(com|org|net)$/i.test(domain) || domain === "test.com") return true;
+    if (/\.(png|jpg|jpeg|gif|svg|webp)$/i.test(local)) return true;
+    return false;
+  }
+
+  function uniqueEmailsFromText(t) {
+    if (!t) return [];
+    const found = String(t).match(EMAIL_RX) || [];
+    return [...new Set(found.map((s) => s.trim()))];
+  }
+
+  function mailtoFromRoot(root) {
+    if (!root || !root.querySelectorAll) return [];
+    const out = [];
+    try {
+      root.querySelectorAll('a[href*="mailto:"]').forEach((a) => {
+        const em = decodeMailto(a.getAttribute("href") || "");
+        if (em) out.push(em);
+      });
+    } catch (_) {}
+    return out;
+  }
+
+  function pickRecruiterEmail(description, jobRoot) {
+    const ranked = [];
+
+    function add(email, rank) {
+      if (!email || isJunkEmail(email)) return;
+      const k = email.toLowerCase();
+      if (ranked.some((x) => x.k === k)) return;
+      ranked.push({ e: email.trim(), k, rank });
+    }
+
+    for (const e of uniqueEmailsFromText(description)) add(e, 1);
+    if (jobRoot) {
+      for (const e of mailtoFromRoot(jobRoot)) add(e, 2);
+      for (const e of uniqueEmailsFromText(text(jobRoot))) add(e, 3);
+    }
+
+    ranked.sort((a, b) => a.rank - b.rank);
+    return ranked.length ? ranked[0].e : "";
+  }
+
   function scrapeLinkedIn() {
     const title =
       text(
@@ -147,12 +219,22 @@
       if (aside) description = text(aside) || description;
     }
 
+    const jobRoot =
+      document.querySelector(".jobs-details__main-content") ||
+      document.querySelector(".jobs-search__job-details--container") ||
+      (descEl && descEl.closest && descEl.closest("article")) ||
+      document.querySelector(".scaffold-layout__list-detail-inner") ||
+      document.body;
+
+    const recruiter_email = pickRecruiterEmail(description, jobRoot) || null;
+
     return {
       title,
       company,
       description,
       source: "linkedin",
       url: window.location.href,
+      recruiter_email,
     };
   }
 
@@ -189,12 +271,31 @@
         ])
       ) || "";
 
+    const descBlock = pickFirst([
+      ".job-desc",
+      ".dang-inner-html",
+      ".jd-desc",
+      "#jobDescriptionHtml",
+      ".styles_job-description__",
+    ]);
+
+    const jobRoot =
+      document.querySelector(".jdWrapper") ||
+      document.querySelector(".jd-main") ||
+      document.querySelector(".job-right-section") ||
+      document.querySelector(".srp-main") ||
+      (descBlock && descBlock.closest && descBlock.closest("main")) ||
+      document.body;
+
+    const recruiter_email = pickRecruiterEmail(description, jobRoot) || null;
+
     return {
       title,
       company,
       description,
       source: "naukri",
       url: window.location.href,
+      recruiter_email,
     };
   }
 

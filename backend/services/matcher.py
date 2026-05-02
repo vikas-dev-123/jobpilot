@@ -1,6 +1,11 @@
 """
 Job matching: OpenAI or Hugging Face embeddings when available; else keyword overlap.
 """
+from __future__ import annotations
+
+import asyncio
+import os
+
 import numpy as np
 
 from .llm import get_embedding
@@ -32,23 +37,25 @@ async def match_job_to_resume(
     matched = [s for s in resume_skills if s.lower() in job_lower]
     missing = [s for s in resume_skills if s.lower() not in job_lower]
 
-    score: float
-    try:
+    def _keyword_score() -> float:
+        return round(100.0 * len(matched) / max(len(resume_skills), 1), 1)
+
+    async def _embedding_score() -> float | None:
         resume_emb = await get_embedding(resume_text)
         job_emb = await get_embedding(job_blob[:8000])
         if resume_emb is not None and job_emb is not None:
             sim = cosine_similarity(resume_emb, job_emb)
-            score = round(max(0.0, min(1.0, sim)) * 100, 1)
-        else:
-            score = round(
-                100.0 * len(matched) / max(len(resume_skills), 1),
-                1,
-            )
-    except Exception:
-        score = round(
-            100.0 * len(matched) / max(len(resume_skills), 1),
-            1,
-        )
+            return round(max(0.0, min(1.0, sim)) * 100, 1)
+        return None
+
+    score: float
+    embed_timeout = float(os.getenv("MATCH_EMBED_TIMEOUT_SEC") or "42")
+    embed_timeout = max(12.0, min(embed_timeout, 120.0))
+    try:
+        emb = await asyncio.wait_for(_embedding_score(), timeout=embed_timeout)
+        score = emb if emb is not None else _keyword_score()
+    except (asyncio.TimeoutError, Exception):
+        score = _keyword_score()
 
     return {
         "score": score,

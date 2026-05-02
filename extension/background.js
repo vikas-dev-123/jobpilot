@@ -42,7 +42,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function submitJobToBackend(jobData) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 40000);
+  const timer = setTimeout(() => ctrl.abort(), 60000);
 
   try {
     const response = await fetch(`${BACKEND_URL}/jobs/submit`, {
@@ -65,7 +65,7 @@ async function submitJobToBackend(jobData) {
   } catch (err) {
     if (err.name === "AbortError") {
       throw new Error(
-        "Job match timed out (40s). Backend slow or Hugging Face stuck — set EMBEDDING_PROVIDER=none in backend/.env for instant keyword match, then restart API."
+        "Job match timed out (60s). Set EMBEDDING_PROVIDER=none in backend/.env for fast keyword-only match, or check API keys / network."
       );
     }
     throw err;

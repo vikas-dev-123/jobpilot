@@ -80,8 +80,69 @@ function renderMatchResult(data) {
       .map((s) => `<span class="tag tag-missing">${escapeHtml(s)}</span>`)
       .join("") || "<span style='color:#64748b;font-size:12px'>Great match!</span>";
 
+  const job = data.job || {};
+  const scraped = job.recruiter_email || "";
+  const sec = document.getElementById("scraped-email-section");
+  const line = document.getElementById("scraped-email-line");
+  const noNote = document.getElementById("no-email-note");
+  if (scraped && sec && line) {
+    line.innerHTML = `<a href="mailto:${escapeHtml(scraped)}">${escapeHtml(scraped)}</a>`;
+    sec.classList.remove("hidden");
+    if (noNote) noNote.classList.add("hidden");
+  } else {
+    if (sec) sec.classList.add("hidden");
+    if (line) line.innerHTML = "";
+    if (noNote) {
+      noNote.classList.remove("hidden");
+      noNote.textContent =
+        job.source === "linkedin"
+          ? "No email in this posting (usual on LinkedIn). Try JD text, company careers, or InMail."
+          : "No email found in this job block. It may still be only on the apply portal.";
+    }
+  }
+
   showState("match-state");
 }
+
+function flashQueueHint(msg) {
+  const el = document.getElementById("queue-hint");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  setTimeout(() => el.classList.add("hidden"), 4000);
+}
+
+document.getElementById("btn-add-queue").addEventListener("click", async () => {
+  if (!currentJobData) {
+    showError("No job data. Run Analyze job first.");
+    return;
+  }
+  const hintEl = document.getElementById("queue-hint");
+  if (hintEl) {
+    hintEl.classList.add("hidden");
+    hintEl.textContent = "";
+  }
+  try {
+    const res = await fetch(`${BACKEND_URL}/apply-queue/add`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        job: currentJobData,
+        match_score: currentResumeData ? currentResumeData.score : null,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const d = typeof json.detail === "string" ? json.detail : res.statusText;
+      showError(d || "Could not add to queue.");
+      return;
+    }
+    flashQueueHint("✓ Queued — open the extension popup to work through jobs & email.");
+    showState("match-state");
+  } catch (err) {
+    showError(err.message || String(err));
+  }
+});
 
 // ─── COVER LETTER ──────────────────────────────────────────────────────────────
 

@@ -11,6 +11,9 @@ const btnUpload = document.getElementById("btn-upload");
 const statusEl = document.getElementById("status");
 const resumeStatusEl = document.getElementById("resume-status");
 const discoverPanel = document.getElementById("discover-panel");
+const applyQueuePanel = document.getElementById("apply-queue-panel");
+
+let smtpEnabled = false;
 
 function escapeHtml(s) {
   if (s == null) return "";
@@ -150,8 +153,258 @@ async function checkExistingResume() {
   }
 }
 
+async function refreshSmtpFlag() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/email/smtp-status`);
+    const json = await res.json();
+    smtpEnabled = !!(json.data && json.data.smtp_enabled);
+  } catch {
+    smtpEnabled = false;
+  }
+}
+
+function renderQueueRow(it) {
+  const row = document.createElement("div");
+  row.className = "aq-row";
+  const job = it.job || {};
+
+  const title = document.createElement("div");
+  title.className = "aq-title";
+  title.textContent = `${job.title || "—"} · ${job.company || "—"}`;
+  row.appendChild(title);
+
+  const meta = document.createElement("div");
+  meta.className = "aq-meta";
+  const score =
+    it.match_score != null ? `Match ${Math.round(Number(it.match_score))}%` : "";
+  meta.textContent = [score, it.status || "pending"].filter(Boolean).join(" · ");
+  row.appendChild(meta);
+
+  const actions = document.createElement("div");
+  actions.className = "aq-actions";
+
+  if (job.url) {
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "aq-mini";
+    openBtn.textContent = "Open job";
+    openBtn.addEventListener("click", () => chrome.tabs.create({ url: job.url }));
+    actions.appendChild(openBtn);
+  }
+
+  const doneBtn = document.createElement("button");
+  doneBtn.type = "button";
+  doneBtn.className = "aq-mini";
+  doneBtn.textContent = "Mark applied";
+  doneBtn.addEventListener("click", async () => {
+    await fetch(`${BACKEND_URL}/apply-queue/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: it.id, status: "applied" }),
+    });
+    await loadApplyQueuePanel();
+  });
+  actions.appendChild(doneBtn);
+
+  const rm = document.createElement("button");
+  rm.type = "button";
+  rm.className = "aq-mini aq-danger";
+  rm.textContent = "Remove";
+  rm.addEventListener("click", async () => {
+    await fetch(`${BACKEND_URL}/apply-queue/remove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: it.id }),
+    });
+    await loadApplyQueuePanel();
+  });
+  actions.appendChild(rm);
+
+  row.appendChild(actions);
+
+  const emailRow = document.createElement("div");
+  emailRow.className = "aq-email-row";
+  const input = document.createElement("input");
+  input.type = "email";
+  input.className = "aq-email";
+  input.placeholder = "recruiter@company.com";
+  input.value = it.recruiter_email || (it.job && it.job.recruiter_email) || "";
+  emailRow.appendChild(input);
+
+  const draftBtn = document.createElement("button");
+  draftBtn.type = "button";
+  draftBtn.className = "aq-mini";
+  draftBtn.textContent = "Draft email";
+  draftBtn.addEventListener("click", async () => {
+    const resumeRes = await fetch(`${BACKEND_URL}/resume/current`);
+    const resumeJson = await resumeRes.json();
+    if (!resumeRes.ok || !resumeJson.success || !resumeJson.data) {
+      alert("Upload resume first.");
+      return;
+    }
+    const genRes = await fetch(`${BACKEND_URL}/email/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        company: job.company || "",
+        job_title: job.title || "",
+        resume_skills: resumeJson.data.skills || [],
+      }),
+    });
+    const genJson = await genRes.json().catch(() => ({}));
+    if (!genRes.ok || !genJson.success) {
+      alert(
+        typeof genJson.detail === "string"
+          ? genJson.detail
+          : genJson.message || "Draft failed"
+      );
+      return;
+    }
+    await fetch(`${BACKEND_URL}/apply-queue/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: it.id,
+        email_subject: genJson.data.subject,
+        email_body: genJson.data.body,
+        recruiter_email: input.value.trim() || null,
+      }),
+    });
+    await loadApplyQueuePanel();
+  });
+  emailRow.appendChild(draftBtn);
+
+  if (smtpEnabled) {
+    const sendBtn = document.createElement("button");
+    sendBtn.type = "button";
+    sendBtn.className = "aq-mini aq-send";
+    sendBtn.textContent = "Send";
+    sendBtn.addEventListener("click", async () => {
+      const to = input.value.trim();
+      if (!to || !to.includes("@")) {
+        alert("Enter recruiter email.");
+        return;
+      }
+      const listRes = await fetch(`${BACKEND_URL}/apply-queue/list`);
+      const listJson = await listRes.json().catch(() => ({}));
+      const fresh = (listJson.data && listJson.data.items || []).find(
+        (x) => x.id === it.id
+      );
+      const subj = fresh && fresh.email_subject;
+      const emailBody = fresh && fresh.email_body;
+      if (!subj || !emailBody) {
+        alert("Click Draft email first.");
+        return;
+      }
+      const sendRes = await fetch(`${BACKEND_URL}/email/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to,
+          subject: subj,
+          body: emailBody,
+          queue_item_id: it.id,
+        }),
+      });
+      const sendJson = await sendRes.json().catch(() => ({}));
+      if (!sendRes.ok) {
+        alert(
+          typeof sendJson.detail === "string" ? sendJson.detail : "Send failed"
+        );
+        return;
+      }
+      alert("Email sent.");
+      await loadApplyQueuePanel();
+    });
+    emailRow.appendChild(sendBtn);
+  }
+
+  row.appendChild(emailRow);
+
+  if (it.email_subject) {
+    const pre = document.createElement("div");
+    pre.className = "aq-draft-preview";
+    const bodyPreview = it.email_body || "";
+    pre.textContent = `${it.email_subject}\n---\n${bodyPreview.slice(0, 280)}${
+      bodyPreview.length > 280 ? "…" : ""
+    }`;
+    row.appendChild(pre);
+  }
+
+  return row;
+}
+
+async function loadApplyQueuePanel() {
+  if (!applyQueuePanel) return;
+  applyQueuePanel.innerHTML =
+    '<div class="discover-muted">Loading apply queue…</div>';
+  await refreshSmtpFlag();
+  try {
+    const res = await fetch(`${BACKEND_URL}/apply-queue/list`);
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      applyQueuePanel.innerHTML = `<div class="discover-muted">${escapeHtml(
+        typeof json.detail === "string" ? json.detail : "Queue unavailable"
+      )}</div>`;
+      return;
+    }
+
+    const items = (json.data && json.data.items) || [];
+    applyQueuePanel.textContent = "";
+
+    const wrap = document.createElement("div");
+    wrap.className = "apply-queue";
+
+    const h = document.createElement("h3");
+    h.textContent = `Apply queue (${items.length})`;
+    wrap.appendChild(h);
+
+    const hint = document.createElement("p");
+    hint.className = "aq-disclaimer";
+    hint.textContent =
+      "Job sites are not auto-filled (account safety). Open each job, apply in the tab, then Mark applied. Paste recruiter email to draft/send.";
+    wrap.appendChild(hint);
+
+    const smtpNote = document.createElement("p");
+    smtpNote.className = "aq-smtp";
+    smtpNote.textContent = smtpEnabled
+      ? "SMTP: on — Send uses your backend mail settings."
+      : "SMTP: off — add SMTP_* to backend/.env to send from here; otherwise copy drafts manually.";
+    wrap.appendChild(smtpNote);
+
+    if (items.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "discover-muted";
+      empty.textContent =
+        'After Analyze on a job page, click "Add to apply queue" in the sidebar.';
+      wrap.appendChild(empty);
+    } else {
+      for (const rowItem of items) {
+        wrap.appendChild(renderQueueRow(rowItem));
+      }
+      const clr = document.createElement("button");
+      clr.type = "button";
+      clr.className = "link-btn aq-clear";
+      clr.textContent = "Clear entire queue";
+      clr.addEventListener("click", async () => {
+        if (!confirm("Clear all queued jobs?")) return;
+        await fetch(`${BACKEND_URL}/apply-queue/clear`, { method: "POST" });
+        await loadApplyQueuePanel();
+      });
+      wrap.appendChild(clr);
+    }
+
+    applyQueuePanel.appendChild(wrap);
+  } catch {
+    applyQueuePanel.innerHTML =
+      '<div class="discover-muted">Cannot load queue (backend?).</div>';
+  }
+}
+
 async function init() {
   await checkExistingResume();
+  await loadApplyQueuePanel();
   await loadDiscoverPanel();
 }
 
@@ -203,6 +456,7 @@ btnUpload.addEventListener("click", async () => {
         "success"
       );
       await loadDiscoverPanel();
+      await loadApplyQueuePanel();
     } else {
       setStatus(`❌ ${json.message || "Upload failed."}`, "error");
     }

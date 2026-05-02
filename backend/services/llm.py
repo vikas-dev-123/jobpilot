@@ -74,7 +74,12 @@ def _detect_llm_provider() -> str:
 
 
 def _openai_compatible_client(*, base_url: str | None, api_key: str) -> AsyncOpenAI:
-    kwargs: dict[str, Any] = {"api_key": api_key}
+    # Bound hang time — default AsyncOpenAI can wait "forever" on bad networks
+    read_s = float(os.getenv("OPENAI_HTTP_READ_TIMEOUT_SEC") or "90")
+    kwargs: dict[str, Any] = {
+        "api_key": api_key,
+        "timeout": httpx.Timeout(connect=20.0, read=max(30.0, read_s), write=45.0, pool=10.0),
+    }
     if base_url:
         kwargs["base_url"] = base_url
     return AsyncOpenAI(**kwargs)
@@ -142,7 +147,8 @@ async def chat_completion(
             "maxOutputTokens": max_tokens,
         },
     }
-    async with httpx.AsyncClient(timeout=120.0) as http:
+    gem_t = float(os.getenv("LLM_HTTP_TIMEOUT_SEC") or "90")
+    async with httpx.AsyncClient(timeout=max(30.0, min(gem_t, 180.0))) as http:
         r = await http.post(url, json=payload)
         try:
             data = r.json()

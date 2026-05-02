@@ -16,7 +16,7 @@ if _env.is_file():
 else:
     load_dotenv(override=True)
 
-from backend.routes import coverletter, discover, email_gen, jobs, resume
+from backend.routes import apply_queue, coverletter, discover, email_gen, jobs, resume
 
 app = FastAPI(
     title="JobPilot AI API",
@@ -39,6 +39,7 @@ app.add_middleware(
 
 # Register route modules
 app.include_router(resume.router)
+app.include_router(apply_queue.router)
 app.include_router(discover.router)
 app.include_router(jobs.router)
 app.include_router(coverletter.router)

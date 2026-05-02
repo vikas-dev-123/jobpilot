@@ -52,6 +52,19 @@ header {
 }
 .hidden { display: none !important; }
 
+.queue-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #6ee7b7;
+  text-align: center;
+}
+.btn-queue {
+  background: linear-gradient(135deg, #0d9488, #14b8a6);
+  color: #fff;
+  margin-bottom: 8px;
+}
+.btn-queue:hover { opacity: 0.9; }
+
 /* Loading */
 .spinner {
   width: 40px;
@@ -123,6 +136,21 @@ header {
 }
 .tag-matched { background: #064e3b; color: #6ee7b7; }
 .tag-missing { background: #7f1d1d; color: #fca5a5; }
+
+.scraped-email-line {
+  font-size: 12px;
+  word-break: break-all;
+}
+.scraped-email-line a {
+  color: #5eead4;
+}
+.no-email-note {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
 
 /* Buttons */
 .actions {

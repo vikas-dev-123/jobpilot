@@ -34,10 +34,18 @@
         <div id="missing-skills" class="tag-list"></div>
       </div>
 
+      <div id="scraped-email-section" class="skills-section hidden">
+        <h4>📧 Email found on page</h4>
+        <p id="scraped-email-line" class="scraped-email-line"></p>
+      </div>
+      <p id="no-email-note" class="no-email-note hidden"></p>
+
       <div class="actions">
+        <button id="btn-add-queue" class="btn btn-queue">📋 Add to apply queue</button>
         <button id="btn-coverletter" class="btn btn-primary">📝 Generate Cover Letter</button>
         <button id="btn-email" class="btn btn-secondary">📧 Recruiter Email</button>
       </div>
+      <p id="queue-hint" class="queue-hint hidden" aria-live="polite"></p>
     </div>
 
     <div id="output-state" class="state-panel hidden">
