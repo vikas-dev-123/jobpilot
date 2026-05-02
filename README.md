@@ -1,53 +1,89 @@
 # JobPilot AI
 
-**JobPilot AI** is an AI-assisted job search companion: a **Chrome extension** that works with job listings on **LinkedIn** and **Naukri**, backed by a **FastAPI** service for resume parsing, skill matching, cover letters, and related helpers.
+**JobPilot AI** is a developer-style job search assistant: a **Chrome extension** plus a **local FastAPI backend** that uses AI to parse your resume, score how well you fit a job posting, and help you draft outreach — without replacing how you actually apply on each site.
+
+**Repository:** [github.com/vikas-dev-123/jobpilot](https://github.com/vikas-dev-123/jobpilot)
 
 ---
 
-## Features
+## What is this extension?
 
-- **Resume upload (PDF)** — Text extraction and structured parsing (skills, experience, education).
-- **Job matching** — Scores listings against your resume using embeddings and/or keyword signals (configurable).
-- **Sidebar workflow** — In-page UI on supported job sites.
-- **Cover letter & email helpers** — Generated text tailored to the role (via your configured LLM).
-- **Discover** — Supporting routes for exploration and integration from the extension.
+JobPilot AI is a **browser extension for Google Chrome** (Manifest V3) built for people who spend time on **LinkedIn Jobs** and **Naukri**.
+
+### What it does for you
+
+1. **Resume first** — You upload a **PDF resume** from the extension popup. The backend extracts text and uses an LLM to pull out **skills, work experience, and education** so the rest of the tool knows who you are.
+
+2. **On the job page** — When you open a job detail page, the extension injects a small **“Analyze job”** control. It reads the **title, company, and description** already visible on the page (no server-side scraping of those sites) and sends that to your **local API**.
+
+3. **Match score** — The API compares your parsed skills to the job text and returns a **match percentage**, plus **matched vs. missing skills**, shown in a **sidebar** panel.
+
+4. **Writing help** — From the sidebar you can generate a **cover letter** and a **recruiter-style email** draft, powered by the LLM you configure (Gemini, Groq, or OpenAI).
+
+5. **Apply queue (workflow)** — You can **add jobs to a queue** from the sidebar, then use the popup to **open each posting**, track status, draft email, and optionally **send mail via SMTP** if you configure it — with the understanding that **you still apply on the employer’s site** yourself (automation of application forms is intentionally out of scope).
+
+6. **Discovery** — The popup can show **suggested search links** (keywords derived from your resume) across several job portals so you can explore faster.
+
+7. **Email on the page** — If a **`mailto:` link** or a plain **email address appears in the job text**, the extension tries to **detect it** and surface it in the UI. Many **LinkedIn** posts never show an email; that is a platform limitation, not a bug in the extension.
+
+### What it is not
+
+- Not an official LinkedIn or Naukri product.
+- Not a replacement for reading the full job description or company policies.
+- Not designed to mass-submit applications or send unsolicited bulk email; use it thoughtfully and in line with each site’s terms and applicable laws.
+
+---
+
+## Features (summary)
+
+| Area | Capability |
+|------|------------|
+| **Resume** | PDF upload, text extraction (`pdfplumber`), structured parsing via LLM |
+| **Matching** | Embeddings (Hugging Face / OpenAI) or **keyword-only** mode (`EMBEDDING_PROVIDER=none`) |
+| **Extension UI** | Popup (upload + queue + discover), content script + sidebar on job pages |
+| **AI text** | Cover letter + recruiter email drafts |
+| **Queue** | Persisted apply queue API + popup actions |
+| **Optional email send** | SMTP settings in `.env` for `/email/send` |
+| **Timeouts** | Bounded HTTP / embedding waits to avoid endless loading states |
 
 ---
 
 ## Architecture
 
-| Layer | Technology |
-|--------|------------|
-| **Extension** | Chrome Manifest V3 (content scripts, service worker, popup, sidebar) |
-| **API** | FastAPI, Uvicorn |
-| **LLM** | Pluggable: **Gemini**, **Groq**, or **OpenAI** (see `backend/.env.example`) |
-| **Embeddings** | **Hugging Face** (recommended), **OpenAI**, or **none** (fast keyword-only mode) |
-| **Resume parsing** | PDF → `pdfplumber`; structured fields via LLM |
+| Layer | Stack |
+|--------|--------|
+| **Extension** | Chrome MV3 — content script, service worker, popup, iframe sidebar |
+| **Backend** | FastAPI + Uvicorn |
+| **LLM** | Configurable: **Gemini**, **Groq**, **OpenAI** |
+| **Embeddings** | **Hugging Face**, **OpenAI**, or **none** (fast keyword scoring) |
 
-Client-side scraping reads the open job page; the backend receives job payloads and the uploaded resume context for matching and generation.
+The extension only sends the **currently open tab’s** job data to **your machine** (`localhost` / `127.0.0.1:8000` by default), not to a third-party hosted backend unless **you** point APIs (LLM/HF) at external providers via keys in `.env`.
 
 ---
 
 ## Prerequisites
 
-- **Python 3.10+** (3.10 tested in project layout)
-- **Google Chrome** (Chromium-compatible) for the extension
-- API keys as needed (see [Configuration](#configuration)): at least one LLM provider; for semantic matching, an embedding provider unless you use `EMBEDDING_PROVIDER=none`
+- **Python 3.10+**
+- **Google Chrome** (or another Chromium browser that supports unpacked extensions the same way)
+- At least one **LLM API key** (see Configuration)
+- For semantic match scores: an **embedding** provider, or set **`EMBEDDING_PROVIDER=none`** for instant keyword-based scores
 
 ---
 
 ## Quick start
 
-### 1. Clone and open the repo
+### 1. Clone the repository
 
 ```powershell
-git clone <YOUR_REPO_URL>
-cd jobScrapper
+git clone https://github.com/vikas-dev-123/jobpilot.git
+cd jobpilot
 ```
+
+*(If your local folder is still named `jobScrapper`, `cd` into that folder instead — the layout is the same.)*
 
 ### 2. Backend
 
-From the **repository root** (`jobScrapper/`):
+From the **repository root**:
 
 ```powershell
 cd backend
@@ -55,78 +91,82 @@ python -m venv venv
 .\venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env
-# Edit .env — add GEMINI_API_KEY, HF_API_TOKEN, etc.
+# Edit .env: LLM keys, optional HF token, SMTP if you want send-from-backend
 cd ..
 ```
 
-Start the API (still from repo root, with venv activated):
+Run the API **from the repo root** (imports use the `backend` package):
 
 ```powershell
 .\backend\venv\Scripts\activate
-uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Or on Windows, from repo root:
+**Windows shortcut:**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-backend.ps1
 ```
 
-- **API:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **Interactive docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **API root:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-### 3. Chrome extension
+### 3. Load the Chrome extension
 
 1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. **Load unpacked** → select the `extension/` folder
-4. Pin **JobPilot AI** and upload your resume from the popup
-5. Optional: set `ALLOWED_ORIGINS` in `backend/.env` to include your extension origin if you tighten CORS (see `.env.example`)
+2. Turn on **Developer mode**
+3. **Load unpacked** → choose this repo’s **`extension/`** folder
+4. Pin **JobPilot AI**, open the popup, and upload your PDF resume
+5. Visit a **LinkedIn** or **Naukri** job posting and use **Analyze job**
+
+If you restrict CORS, add your extension origin under `ALLOWED_ORIGINS` in `backend/.env` (see `.env.example`).
 
 ---
 
-## Configuration
+## Configuration (`backend/.env`)
 
-Copy `backend/.env.example` to `backend/.env` and fill in:
+Copy from `backend/.env.example`. Important variables:
 
 | Variable | Purpose |
 |----------|---------|
 | `LLM_PROVIDER` | `gemini` \| `groq` \| `openai` |
-| `GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENAI_API_KEY` | LLM credentials |
+| `GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENAI_API_KEY` | LLM authentication |
 | `EMBEDDING_PROVIDER` | `huggingface` \| `openai` \| `none` |
-| `HF_API_TOKEN` | Hugging Face token (if using HF embeddings) |
-| `ALLOWED_ORIGINS` | Comma-separated origins; extension uses `chrome-extension://...` |
+| `HF_API_TOKEN` | Required for Hugging Face embeddings when that provider is active |
+| `MATCH_EMBED_TIMEOUT_SEC` | Cap wait for embedding-based match; falls back to keywords |
+| `SMTP_ENABLED`, `SMTP_*` | Optional: send drafts via backend (`/email/send`) |
 
-**Never commit `backend/.env`** — it is listed in `.gitignore`.
+**Do not commit `backend/.env`** — it is gitignored.
 
 ---
 
-## API overview
+## API overview (high level)
 
-Routers are mounted under prefixes such as:
+| Prefix | Role |
+|--------|------|
+| `/resume` | Upload PDF, session resume snapshot |
+| `/jobs` | Submit a scraped job payload, receive match result |
+| `/apply-queue` | Add/list/update queued roles |
+| `/discover` | Search-plan links from resume keywords |
+| `/coverletter`, `/email` | Generate drafts; `/email/send` if SMTP enabled |
 
-- `/resume` — upload and session resume data
-- `/jobs` — submit scraped jobs, list matches
-- `/discover`, `/coverletter`, `/email` — discovery and generation flows
-
-Use `/docs` for the full OpenAPI contract.
+Full contract: **`/docs`**.
 
 ---
 
 ## Project structure
 
 ```text
-jobScrapper/
 ├── backend/
-│   ├── main.py              # FastAPI app
-│   ├── routes/              # HTTP routers
-│   ├── services/            # LLM, matcher, parser, extractor
-│   ├── models/              # Pydantic schemas
-│   ├── storage/             # Local upload area (gitignored except .gitkeep)
+│   ├── main.py
+│   ├── routes/          # resume, jobs, apply_queue, discover, coverletter, email
+│   ├── services/        # llm, matcher, parser, extractor, smtp_send
+│   ├── models/
+│   ├── storage/
 │   ├── requirements.txt
 │   └── .env.example
-├── extension/               # Chrome extension (MV3)
-├── start-backend.ps1        # Windows helper to run Uvicorn
+├── extension/           # Chrome MV3 extension
+├── start-backend.ps1
 └── README.md
 ```
 
@@ -134,18 +174,19 @@ jobScrapper/
 
 ## Development notes
 
-- Run Uvicorn from the **repo root** so imports resolve as `backend.*`.
-- Session state (e.g. current resume) is **in-memory**; restarting the server clears it unless you add persistence.
+- Always run Uvicorn from the **repository root** so `backend.*` imports resolve.
+- **Resume and queue session state** in the API are largely **in-memory / file-backed per feature**; restarting clears in-memory resume unless you re-upload.
 
 ---
 
 ## Security & privacy
 
-- Keep API keys only in `backend/.env` or your host’s secret store.
-- The extension is granted access to LinkedIn/Naukri and your local API URLs defined in `manifest.json`; review permissions before installing.
+- Treat **API keys** as secrets; keep them in `.env` or a proper secret manager.
+- The extension requests permission to run on **LinkedIn**, **Naukri**, and **localhost** — review `extension/manifest.json` before use.
+- **SMTP**: only enable if you understand your provider’s rules and anti-spam expectations.
 
 ---
 
 ## License
 
-Specify your license here (e.g. MIT) once you choose one for the project.
+Add a `LICENSE` file and update this line when you choose a license (for example MIT).
